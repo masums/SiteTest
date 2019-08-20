@@ -1,4 +1,5 @@
 ﻿using CommandLine;
+using RestSharp;
 using System;
 using System.Collections;
 using System.IO;
@@ -19,7 +20,7 @@ namespace HttpAttacker
                 .WithParsed(opts => HandleCommand(opts))
                 .WithNotParsed((errs) => HandleParseError(errs));
 
-            Console.WriteLine("Operation Completed");
+            Console.WriteLine("Operation started");
 
             Console.ReadKey();
         }
@@ -37,41 +38,15 @@ namespace HttpAttacker
                     Console.WriteLine($"Agent {current}, Request {i}: Start");
                     try
                     {
-                        if (opts.Method.Equals("POST", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var request = HttpWebRequest.Create(opts.Url);
-                            request.Method = opts.Method.ToUpper();
+                        var client = new RestClient(opts.Url);
+                        var request = new RestRequest(GetMethod(opts.Method));
+                        AddParamiters(request, opts.QueryString);
 
-                            using (var reqStream = request.GetRequestStream())
-                            {
-                                if (string.IsNullOrWhiteSpace(opts.QueryString) == false)
-                                {
-                                    reqStream.Write(Encoding.UTF8.GetBytes(opts.QueryString));
-                                }
-                            }
+                        client.ExecuteAsync(request, response => {
+                            Console.WriteLine($"Agent {current}, Request {i}: Response: ");
+                            Console.WriteLine(response.Content);
+                        });
 
-                            var rsp = request.GetResponse();
-                            if (rsp != null)
-                            {
-                                using (var sr = new StreamReader(rsp.GetResponseStream()))
-                                {
-                                    Console.WriteLine(sr.ReadToEnd());
-                                }
-                            }
-                        }
-                        else
-                        {
-                            var request = HttpWebRequest.Create(opts.Url + "?" + opts.QueryString);
-                            request.Method = opts.Method.ToUpper();
-                            var rsp = request.GetResponse();
-                            if (rsp != null)
-                            {
-                                using (var sr = new StreamReader(rsp.GetResponseStream()))
-                                {
-                                    Console.WriteLine(sr.ReadToEnd());
-                                }
-                            }
-                        }
                     }
                     catch (Exception ex)
                     {
@@ -80,6 +55,38 @@ namespace HttpAttacker
                     Console.WriteLine($"Agent {current}, Request {i}: End");
                 }
             });
+        }
+
+        private static Method GetMethod(string method)
+        {
+            if(method.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            {
+                return Method.POST;
+            }
+            else if(method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            {
+                return Method.POST;
+            }
+            else
+            {
+                throw new Exception("Method conversion not implemented.");
+            }
+        }
+
+        private static void AddParamiters(RestRequest request, string queryString)
+        {
+            if(string.IsNullOrWhiteSpace(queryString) == false)
+            {
+                var parts = queryString.Split("&", StringSplitOptions.RemoveEmptyEntries);
+                foreach (var item in parts)
+                {
+                    var pPart = item.Split("=", StringSplitOptions.RemoveEmptyEntries);
+                    if(pPart.Length == 2)
+                    {
+                        request.AddParameter(pPart[0], pPart[1]);
+                    }
+                }
+            }
         }
 
         private static void HandleParseError(IEnumerable errs)
