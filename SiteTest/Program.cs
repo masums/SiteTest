@@ -16,6 +16,8 @@ namespace HttpAttacker
         {
             Console.WriteLine("Hello Site Tester");
 
+            ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
+
             Parser.Default.ParseArguments<Options>(args)
                 .WithParsed(opts => HandleCommand(opts))
                 .WithNotParsed((errs) => HandleParseError(errs));
@@ -28,7 +30,7 @@ namespace HttpAttacker
 
         private static void HandleCommand(Options opts)
         {
-            Console.WriteLine($"URL : {opts.Url})");
+            Console.WriteLine($"URL : {opts.Url}");
             Parallel.For(0, opts.AgentNumber, (current) =>
             {
                 Console.WriteLine($"Aget: {current}");
@@ -39,7 +41,10 @@ namespace HttpAttacker
                     try
                     {
                         var client = new RestClient(opts.Url);
+                        
                         var request = new RestRequest(GetMethod(opts.Method));
+                        request.Timeout = 60 * 1000;
+
                         AddParamiters(request, opts.QueryString);
 
                         client.ExecuteAsync(request, response => {
