@@ -2,7 +2,7 @@
   "profiles": {
     "SiteTest": {
       "commandName": "Project",
-      "commandLineArgs": "-u http://masums.com -m GET -q \"\" -a 1"
+      "commandLineArgs": "-u http://masums.com -m GET -q \"\" -a 1 "
     }
   }
 }

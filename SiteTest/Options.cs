@@ -13,7 +13,7 @@ namespace HttpAttacker
         [Option('m', "method", Required = true, HelpText = "Request method GET/POST", Default = "GET")]
         public string Method { get; set; }
 
-        [Option('q', "querystring", Required = false, HelpText = "& seperated query string")]
+        [Option('q', "querystring", Required = false, HelpText = "& seperated query string inside \" \" ")]
         public string QueryString { get; set; }
 
         [Option('a', "agent", Required = false, HelpText = "Number of concurrent request agent", Default = 1)]
@@ -21,5 +21,8 @@ namespace HttpAttacker
 
         [Option('n', "request", Required = false, HelpText = "Number of request per agent", Default = 100)]
         public int NumberOfRequest{ get; set; }
+
+        [Option('r', "rspshow", Required = false, HelpText = "Show response output. 1 for show 0 for hide", Default = 1)]
+        public int ShowResponse { get; set; }
     }
 }

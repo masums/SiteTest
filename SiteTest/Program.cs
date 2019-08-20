@@ -6,14 +6,19 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HttpAttacker
 {
     class Program
     {
+        volatile static int Agents = 0, RequestCount = 0, Success = 0, Failed = 0;
+        volatile static bool IsRunning = false;
+
         static void Main(string[] args)
         {
+            IsRunning = true;
             Console.WriteLine("Hello Site Tester");
 
             ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
@@ -22,22 +27,49 @@ namespace HttpAttacker
                 .WithParsed(opts => HandleCommand(opts))
                 .WithNotParsed((errs) => HandleParseError(errs));
 
-            Console.WriteLine("Operation started");
-
+            GC.Collect();
             Console.ReadKey();
+            IsRunning = false;
+            Console.WriteLine("Operation completed");
         }
 
+        private static void UpdateDisplay()
+        {
+            new Task(()=> {
+
+                while (IsRunning )
+                {
+                    Console.Clear();
+                    Console.WriteLine($"Agents: {Agents}, Total Request: {RequestCount}, Success: {Success} / Failed: {Failed}");
+                    Thread.Sleep(1000);
+                }
+                
+            }).Start();
+        }
 
         private static void HandleCommand(Options opts)
         {
             Console.WriteLine($"URL : {opts.Url}");
+            UpdateDisplay();
+
             Parallel.For(0, opts.AgentNumber, (current) =>
             {
-                Console.WriteLine($"Aget: {current}");
-                
+                if (opts.ShowResponse == 1)
+                {
+                    Console.WriteLine($"Aget: {current}");
+                }
+
+                Agents = opts.AgentNumber;
+
                 for (int i = 0; i < opts.NumberOfRequest; i++)
                 {
-                    Console.WriteLine($"Agent {current}, Request {i}: Start");
+                    if (opts.ShowResponse == 1)
+                    {
+                        Console.WriteLine($"Agent {current}, Request {i}: Start");
+                    }
+
+                    RequestCount++;
+
                     try
                     {
                         var client = new RestClient(opts.Url);
@@ -48,18 +80,39 @@ namespace HttpAttacker
                         AddParamiters(request, opts.QueryString);
 
                         client.ExecuteAsync(request, response => {
-                            Console.WriteLine($"Agent {current}, Request {i}: Response: ");
-                            Console.WriteLine(response.Content);
-                        });
 
+                            if(response.StatusCode == HttpStatusCode.OK && string.IsNullOrWhiteSpace(response.Content) == false)
+                            {
+                                Success++;
+                            }
+                            else
+                            {
+                                Failed++;
+                                if (opts.ShowResponse == 1)
+                                {
+                                    Console.WriteLine($"Agent {current}, Request {i}: Error: {response.ErrorException}");
+                                }
+                            }
+
+                            if(opts.ShowResponse == 1)
+                            {
+                                Console.WriteLine($"Agent {current}, Request {i}: Response: ");
+                                Console.WriteLine(response.Content);
+                            }
+                        });
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"Agent {current}, Request {i}: Error: {ex.Message}" );
                     }
-                    Console.WriteLine($"Agent {current}, Request {i}: End");
-                }
+
+                    if (opts.ShowResponse == 1)
+                    {
+                        Console.WriteLine($"Agent {current}, Request {i}: End");
+                    } 
+                }                
             });
+            
         }
 
         private static Method GetMethod(string method)
