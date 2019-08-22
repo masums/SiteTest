@@ -35,93 +35,124 @@ namespace HttpAttacker
 
         private static void UpdateDisplay()
         {
-            new Task(()=> {
+            new Task(() =>
+            {
 
-                while (IsRunning )
+                while (IsRunning)
                 {
                     Console.Clear();
                     Console.WriteLine($"Agents: {Agents}, Total Request: {RequestCount}, Success: {Success} / Failed: {Failed}");
                     Thread.Sleep(1000);
                 }
-                
+
             }).Start();
         }
 
         private static void HandleCommand(Options opts)
         {
             Console.WriteLine($"URL : {opts.Url}");
+
             UpdateDisplay();
 
-            Parallel.For(0, opts.AgentNumber, (current) =>
+            Parallel.For(0, opts.AgentNumber, (agentIndex) =>
             {
                 if (opts.ShowResponse == 1)
                 {
-                    Console.WriteLine($"Aget: {current}");
+                    Console.WriteLine($"Aget: {agentIndex}");
                 }
 
                 Agents = opts.AgentNumber;
 
-                for (int i = 0; i < opts.NumberOfRequest; i++)
-                {
+                for (int i = 0; i < opts.RequestNumber; i++)
+                { 
+                    RequestCount++;
+
                     if (opts.ShowResponse == 1)
                     {
-                        Console.WriteLine($"Agent {current}, Request {i}: Start");
+                        Console.WriteLine($"Agent {agentIndex}, Request {i}: Start");
                     }
-
-                    RequestCount++;
 
                     try
                     {
                         var client = new RestClient(opts.Url);
-                        
                         var request = new RestRequest(GetMethod(opts.Method));
-                        request.Timeout = 60 * 1000;
+                        request.Timeout = opts.Timeout * 60 * 1000;
 
                         AddParamiters(request, opts.QueryString);
-
-                        client.ExecuteAsync(request, response => {
-
-                            if(response.StatusCode == HttpStatusCode.OK && string.IsNullOrWhiteSpace(response.Content) == false)
-                            {
-                                Success++;
-                            }
-                            else
-                            {
-                                Failed++;
-                                if (opts.ShowResponse == 1)
-                                {
-                                    Console.WriteLine($"Agent {current}, Request {i}: Error: {response.ErrorException}");
-                                }
-                            }
-
-                            if(opts.ShowResponse == 1)
-                            {
-                                Console.WriteLine($"Agent {current}, Request {i}: Response: ");
-                                Console.WriteLine(response.Content);
-                            }
-                        });
+                        MakeRequest(agentIndex, i, client, request, opts);                          
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Agent {current}, Request {i}: Error: {ex.Message}" );
+                        Console.WriteLine($"Agent {agentIndex}, Request {i}: Error: {ex.Message}");
                     }
 
                     if (opts.ShowResponse == 1)
                     {
-                        Console.WriteLine($"Agent {current}, Request {i}: End");
-                    } 
-                }                
-            });
-            
+                        Console.WriteLine($"Agent {agentIndex}, Request {i}: End");
+                    }
+                };
+            }); 
+        }
+
+        private static void MakeRequest(int agetIndex, int reqIndex, RestClient client, RestRequest request, Options opts)
+        {
+            if(opts.RequestMode.Equals("async", StringComparison.OrdinalIgnoreCase))
+            {
+                client.ExecuteAsync(request, response =>
+                {
+
+                    if (response.StatusCode == HttpStatusCode.OK && string.IsNullOrWhiteSpace(response.Content) == false)
+                    {
+                        Success++;
+                    }
+                    else
+                    {
+                        Failed++;
+                        if (opts.ShowResponse == 1)
+                        {
+                            Console.WriteLine($"Agent {agetIndex}, Request {reqIndex}: Error: {response.ErrorException}");
+                        }
+                    }
+
+                    if (opts.ShowResponse == 1)
+                    {
+                        Console.WriteLine($"Agent {agetIndex}, Request {reqIndex}: Response: ");
+                        Console.WriteLine(response.Content);
+                    }
+                });
+            }
+            else
+            {
+                var response = client.Execute(request);
+
+                if (response.StatusCode == HttpStatusCode.OK && string.IsNullOrWhiteSpace(response.Content) == false)
+                {
+                    Success++;
+                }
+                else
+                {
+                    Failed++;
+                    if (opts.ShowResponse == 1)
+                    {
+                        Console.WriteLine($"Agent {agetIndex}, Request {reqIndex}: Error: {response.ErrorException}");
+                    }
+                }
+
+                if (opts.ShowResponse == 1)
+                {
+                    Console.WriteLine($"Agent {agetIndex}, Request {reqIndex}: Response: ");
+                    Console.WriteLine(response.Content);
+                }
+            }
         }
 
         private static Method GetMethod(string method)
         {
-            if(method.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            if (method.Equals("POST", StringComparison.OrdinalIgnoreCase))
             {
                 return Method.POST;
             }
-            else if(method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            else if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
             {
                 return Method.POST;
             }
@@ -133,13 +164,13 @@ namespace HttpAttacker
 
         private static void AddParamiters(RestRequest request, string queryString)
         {
-            if(string.IsNullOrWhiteSpace(queryString) == false)
+            if (string.IsNullOrWhiteSpace(queryString) == false)
             {
                 var parts = queryString.Split("&", StringSplitOptions.RemoveEmptyEntries);
                 foreach (var item in parts)
                 {
                     var pPart = item.Split("=", StringSplitOptions.RemoveEmptyEntries);
-                    if(pPart.Length == 2)
+                    if (pPart.Length == 2)
                     {
                         request.AddParameter(pPart[0], pPart[1]);
                     }
