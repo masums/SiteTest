@@ -22,7 +22,7 @@ namespace HttpAttacker
         [Option('r', "request", Required = false, HelpText = "Request number per agent", Default = 100)]
         public int RequestNumber { get; set; }
 
-        [Option('t', "timeout", Required = false, HelpText = "Request time out in minute defulat 10 min.", Default = 1)]
+        [Option('t', "timeout", Required = false, HelpText = "Request time out in minute defulat 10 min.", Default = 2)]
         public int Timeout { get; set; }
 
         [Option('o', "output", Required = false, HelpText = "Show response output. 1 for show 0 for hide", Default = 1)]

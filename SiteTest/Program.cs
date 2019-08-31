@@ -2,6 +2,7 @@
 using RestSharp;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -13,7 +14,7 @@ namespace HttpAttacker
 {
     class Program
     {
-        volatile static int Agents = 0, RequestCount = 0, Success = 0, Failed = 0;
+        volatile static int TotalAgents = 0, RunningAgents = 0, RequestCount = 0, Success = 0, Failed = 0, Error = 0, AgentIndex = 1;
         volatile static bool IsRunning = false;
 
         static void Main(string[] args)
@@ -41,7 +42,7 @@ namespace HttpAttacker
                 while (IsRunning)
                 {
                     Console.Clear();
-                    Console.WriteLine($"Agents: {Agents}, Total Request: {RequestCount}, Success: {Success} / Failed: {Failed}");
+                    Console.WriteLine($"Agents: {RunningAgents} / {TotalAgents}, Total Request: {RequestCount}, Success: {Success} / Failed: {Failed} / Error: {Error}");
                     Thread.Sleep(1000);
                 }
 
@@ -51,47 +52,66 @@ namespace HttpAttacker
         private static void HandleCommand(Options opts)
         {
             Console.WriteLine($"URL : {opts.Url}");
+            var taskList = new List<Thread>();
 
             UpdateDisplay();
 
-            Parallel.For(0, opts.AgentNumber, (agentIndex) =>
+            //Parallel.For(0, opts.AgentNumber,new ParallelOptions() {MaxDegreeOfParallelism = opts.AgentNumber }, (agentIndex) =>
+            for (int i = 0; i < opts.AgentNumber; i++)
             {
-                if (opts.ShowResponse == 1)
+                var task = new Thread(() =>
                 {
-                    Console.WriteLine($"Aget: {agentIndex}");
-                }
-
-                Agents = opts.AgentNumber;
-
-                for (int i = 0; i < opts.RequestNumber; i++)
-                { 
-                    RequestCount++;
+                    RunningAgents++;
 
                     if (opts.ShowResponse == 1)
                     {
-                        Console.WriteLine($"Agent {agentIndex}, Request {i}: Start");
+                        Console.WriteLine($"Aget: {AgentIndex}");
                     }
 
-                    try
-                    {
-                        var client = new RestClient(opts.Url);
-                        var request = new RestRequest(GetMethod(opts.Method));
-                        request.Timeout = opts.Timeout * 60 * 1000;
+                    TotalAgents = opts.AgentNumber;
 
-                        AddParamiters(request, opts.QueryString);
-                        MakeRequest(agentIndex, i, client, request, opts);                          
-                    }
-                    catch (Exception ex)
+                    for (int i = 0; i < opts.RequestNumber; i++)
                     {
-                        Console.WriteLine($"Agent {agentIndex}, Request {i}: Error: {ex.Message}");
-                    }
+                        RequestCount++;
 
-                    if (opts.ShowResponse == 1)
-                    {
-                        Console.WriteLine($"Agent {agentIndex}, Request {i}: End");
-                    }
-                };
-            }); 
+                        if (opts.ShowResponse == 1)
+                        {
+                            Console.WriteLine($"Agent {AgentIndex}, Request {i}: Start");
+                        }
+
+                        try
+                        {
+                            var client = new RestClient(opts.Url);
+                            var request = new RestRequest(GetMethod(opts.Method));
+                            request.Timeout = opts.Timeout * 60 * 1000;
+
+                            AddParamiters(request, opts.QueryString);
+                            MakeRequest(AgentIndex, i, client, request, opts);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Agent {AgentIndex}, Request {i}: Error: {ex.Message}");
+                            Error++;
+                        }
+
+                        if (opts.ShowResponse == 1)
+                        {
+                            Console.WriteLine($"Agent {AgentIndex}, Request {i}: End");
+                        }
+                    };
+
+                    AgentIndex++;
+                    RunningAgents--;
+                });
+
+                taskList.Add(task);                
+                task.Start();
+            }
+
+            while (RunningAgents > 0)
+            {
+                Thread.Sleep(1000);
+            }
         }
 
         private static void MakeRequest(int agetIndex, int reqIndex, RestClient client, RestRequest request, Options opts)
@@ -101,23 +121,30 @@ namespace HttpAttacker
                 client.ExecuteAsync(request, response =>
                 {
 
-                    if (response.StatusCode == HttpStatusCode.OK && string.IsNullOrWhiteSpace(response.Content) == false)
+                    try
                     {
-                        Success++;
-                    }
-                    else
-                    {
-                        Failed++;
+                        if (response.StatusCode == HttpStatusCode.OK && string.IsNullOrWhiteSpace(response.Content) == false)
+                        {
+                            Success++;
+                        }
+                        else
+                        {
+                            Failed++;
+                            if (opts.ShowResponse == 1)
+                            {
+                                Console.WriteLine($"Agent {agetIndex}, Request {reqIndex}: Error: {response.ErrorException}");
+                            }
+                        }
+
                         if (opts.ShowResponse == 1)
                         {
-                            Console.WriteLine($"Agent {agetIndex}, Request {reqIndex}: Error: {response.ErrorException}");
+                            Console.WriteLine($"Agent {agetIndex}, Request {reqIndex}: Response: ");
+                            Console.WriteLine(response.Content);
                         }
                     }
-
-                    if (opts.ShowResponse == 1)
+                    catch (Exception ex)
                     {
-                        Console.WriteLine($"Agent {agetIndex}, Request {reqIndex}: Response: ");
-                        Console.WriteLine(response.Content);
+                        Failed++;
                     }
                 });
             }
